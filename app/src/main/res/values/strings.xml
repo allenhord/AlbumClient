@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Accessing_Content_Provider</string>
+    <string name="heading">Accessing data of Content Provider</string>
+    <string name="loadButtonText">Load Data</string>
+    <string name="hintText1">Enter Artist Name</string>
+    <string name="hintText2">Enter Album Name</string>
+    <string name="insertButtontext">Insert Data</string>
+    <string name="element_text">Element</string>
+    <string name="grid_layout_manager">Grid Layout Manager</string>
+    <string name="linear_layout_manager">Linear Layout Manager</string>
+</resources>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="#62def8">
+
+    <TextView
+        android:id="@+id/popText"
+        android:textAlignment="center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="30dp"
+        android:textSize="22sp"
+        android:text="Edity Entry" />
+
+    <EditText
+        android:id="@+id/popName1"
+        android:layout_below="@id/popText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="40dp"
+        android:hint="@string/hintText1" />
+
+    <EditText
+        android:id="@+id/popName2"
+        android:layout_below="@id/popName1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="40dp"
+        android:hint="@string/hintText2" />
+
+    <Button
+        android:layout_below="@id/popName2"
+        android:id="@+id/btnSubmit"
+        android:layout_width="150dp"
+        android:layout_height="40dp"
+        android:background="#3399ff"
+        android:text="Submit"
+        android:layout_alignParentLeft="true" />
+
+    <Button
+        android:layout_below="@id/popName2"
+        android:layout_toRightOf="@id/btnSubmit"
+        android:id="@+id/btnDelete"
+        android:layout_centerVertical="true"
+        android:layout_width="150dp"
+        android:layout_height="40dp"
+        android:background="#ff3368"
+        android:layout_alignParentRight="true"
+        android:text="Delete" />
+
+
+</RelativeLayout>
