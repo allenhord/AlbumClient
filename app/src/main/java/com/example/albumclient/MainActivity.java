@@ -10,11 +10,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.view.Gravity;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
@@ -28,13 +28,9 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
 
     private AlbumObserver albumObserver;
-    private static final Uri CONTENT_URI = Uri.parse("content://com.demo.user.provider/users");
+    private static final Uri CONTENT_URI = Uri.parse("content://com.demo.album.provider/albums");
 
     ListView l;
-
-//    int getItemPosition(View view) {
-//        return (int) view.getTag(view.getId());
-//    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
         values.put("name", ((EditText) findViewById(R.id.textName2)).getText().toString());
 
         // inserting into database through content URI
-        getContentResolver().insert(Uri.parse("content://com.demo.user.provider/users"), values);
+        getContentResolver().insert(Uri.parse("content://com.demo.album.provider/albums"), values);
 
         // displaying a toast message
         Toast.makeText(getBaseContext(), "New Record Inserted", Toast.LENGTH_LONG).show();
@@ -88,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
     public void onClickShowDetails(View view) {
         // creating a cursor object of the
         // content URI
-        Cursor cursor = getContentResolver().query(Uri.parse("content://com.demo.user.provider/users"), null, null, null, null);
+        Cursor cursor = getContentResolver().query(Uri.parse("content://com.demo.album.provider/albums"), null, null, null, null);
 
         // iteration of the cursor
         // to print whole table
@@ -138,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
                     closeButton.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            Uri contentUri = Uri.parse("content://com.demo.user.provider/users");
+                            Uri contentUri = Uri.parse("content://com.demo.album.provider/albums");
                             String selection = "id=?";
                             String[] selectionArgs = new String[]{sub};
                             getContentResolver().delete(contentUri, selection, selectionArgs);
@@ -152,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
                     submitButton.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-                            Uri contentUri = Uri.parse("content://com.demo.user.provider/users");
+                            Uri contentUri = Uri.parse("content://com.demo.album.provider/albums");
                             ContentValues values = new ContentValues();
                             values.put("artist", popText1.getText().toString());
                             values.put("name", popText2.getText().toString());
@@ -165,12 +161,18 @@ public class MainActivity extends AppCompatActivity {
                     });
 
                     // dismiss the popup window when touched
-                    popupView.setOnTouchListener(new View.OnTouchListener() {
-                        @Override
-                        public boolean onTouch(View v, MotionEvent event) {
-                            popupWindow.dismiss();
-                            return true;
-                        }
+//                    popupView.setOnTouchListener(new View.OnTouchListener() {
+//                        @Override
+//                        public boolean onTouch(View v, MotionEvent event) {
+//                            popupWindow.dismiss();
+//                            return true;
+//                        }
+//                    });
+
+                    // close button to dismiss the popup window
+                    ImageButton btnClose = popupView.findViewById(R.id.btnClose);
+                    btnClose.setOnClickListener(v -> {
+                        popupWindow.dismiss();  // Close the popup when clicked
                     });
                 }
             });
@@ -180,7 +182,6 @@ public class MainActivity extends AppCompatActivity {
                     R.layout.support_simple_spinner_dropdown_item, albumRowsList);
             l.setAdapter(arr);
         } else {
-            // resultView.setText("No Records Found");
             Toast.makeText(getBaseContext(), "No Records Found", Toast.LENGTH_LONG).show();
         }
     }
