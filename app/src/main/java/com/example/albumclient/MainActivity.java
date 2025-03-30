@@ -30,7 +30,7 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private AlbumObserver albumObserver;
-    private static final Uri CONTENT_URI = Uri.parse("content://com.demo.album.provider/albums");
+    private static final Uri CONTENT_URI = Uri.parse("content://com.example.albummanager.provider/albums");
     private ListView listView;
     private Map<Integer, Album> positionToAlbumMap = new HashMap<>();
 

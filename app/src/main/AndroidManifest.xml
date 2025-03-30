@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <queries>
-        <package android:name="com.example.albumapi" />
+        <package android:name="com.example.albummanager" />
     </queries>
     <application
         android:allowBackup="true"
