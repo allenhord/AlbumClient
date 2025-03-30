@@ -11,7 +11,6 @@ import android.os.Handler;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -22,6 +21,8 @@ import android.widget.Toast;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
+import com.example.albumclient.model.Album;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private AlbumObserver albumObserver;
     private static final Uri CONTENT_URI = Uri.parse("content://com.demo.album.provider/albums");
     private ListView listView;
-    private Map<Integer, Long> positionToIdMap = new HashMap<>();
+    private Map<Integer, Album> positionToAlbumMap = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,113 +71,150 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onClickAddDetails(View view) {
-        // class to add values in the database
-        ContentValues values = new ContentValues();
+        try {
+            // Get input values
+            String artist = ((EditText) findViewById(R.id.textName1)).getText().toString();
+            String name = ((EditText) findViewById(R.id.textName2)).getText().toString();
 
-        // fetching text from user
-        values.put("artist", ((EditText) findViewById(R.id.textName1)).getText().toString());
-        values.put("name", ((EditText) findViewById(R.id.textName2)).getText().toString());
+            // Validate input
+            if (artist.isEmpty() || name.isEmpty()) {
+                Toast.makeText(getBaseContext(), "Please fill in all fields", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        // inserting into database through content URI
-        getContentResolver().insert(CONTENT_URI, values);
-
-        // displaying a toast message
-        Toast.makeText(getBaseContext(), "New Record Inserted", Toast.LENGTH_LONG).show();
+            // Create new album
+            Album newAlbum = new Album(artist, name);
+            
+            // Insert into database
+            Uri result = getContentResolver().insert(CONTENT_URI, newAlbum.toContentValues());
+            
+            if (result != null) {
+                Toast.makeText(getBaseContext(), "New Record Inserted", Toast.LENGTH_LONG).show();
+                // Clear input fields
+                ((EditText) findViewById(R.id.textName1)).setText("");
+                ((EditText) findViewById(R.id.textName2)).setText("");
+            } else {
+                Toast.makeText(getBaseContext(), "Failed to insert record", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     public void onClickShowDetails(View view) {
-        // creating a cursor object of the content URI
-        Cursor cursor = getContentResolver().query(CONTENT_URI, null, null, null, null);
+        try {
+            // Query the database
+            Cursor cursor = getContentResolver().query(CONTENT_URI, null, null, null, null);
 
-        // iteration of the cursor to print whole table
-        if (cursor != null && cursor.moveToFirst()) {
-            ArrayList<String> albumRowsList = new ArrayList<>();
-            positionToIdMap.clear(); // Clear the previous mapping
-            
-            int listPosition = 0;
-            while (!cursor.isAfterLast()) {
-                // Store the ID mapping
-                long id = cursor.getLong(cursor.getColumnIndex("id"));
-                positionToIdMap.put(listPosition, id);
+            if (cursor != null && cursor.moveToFirst()) {
+                ArrayList<String> albumRowsList = new ArrayList<>();
+                positionToAlbumMap.clear(); // Clear the previous mapping
                 
-                albumRowsList.add(cursor.getString(cursor.getColumnIndex("artist"))
-                        + " - " + cursor.getString(cursor.getColumnIndex("name")));
-                cursor.moveToNext();
-                listPosition++;
-            }
-            cursor.close();
-
-            listView.setOnItemClickListener((parent, view1, position, id) -> {
-                // Get the actual database ID from our mapping
-                Long databaseId = positionToIdMap.get(position);
-                if (databaseId == null) {
-                    Toast.makeText(getBaseContext(), "Error: Could not find album ID", Toast.LENGTH_SHORT).show();
-                    return;
+                int listPosition = 0;
+                while (!cursor.isAfterLast()) {
+                    // Create Album object from cursor
+                    Album album = Album.fromCursor(cursor);
+                    positionToAlbumMap.put(listPosition, album);
+                    
+                    // Add display string to list
+                    albumRowsList.add(album.getDisplayString());
+                    cursor.moveToNext();
+                    listPosition++;
                 }
-
-                // Get the artist and name from the list
-                String rowText = albumRowsList.get(position);
-                String[] parts = rowText.split(" - ");
-                String artist = parts[0];
-                String name = parts[1];
-
-                // inflate the layout of the popup window
-                LayoutInflater inflater = (LayoutInflater)
-                        getSystemService(LAYOUT_INFLATER_SERVICE);
-                View popupView = inflater.inflate(R.layout.popup_window, null);
-
-                // create the popup window
-                int width = LinearLayout.LayoutParams.WRAP_CONTENT;
-                int height = LinearLayout.LayoutParams.WRAP_CONTENT;
-                boolean focusable = true; // lets taps outside the popup also dismiss it
-                final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
-
-                // show the popup window
-                popupWindow.showAtLocation(view1, Gravity.CENTER, 0, 0);
-
-                EditText popText1 = popupView.findViewById(R.id.popName1);
-                popText1.setText(artist, TextView.BufferType.EDITABLE);
-                EditText popText2 = popupView.findViewById(R.id.popName2);
-                popText2.setText(name, TextView.BufferType.EDITABLE);
-
-                // Find the button inside the popup and set click listener
-                Button closeButton = popupView.findViewById(R.id.btnDelete);
-                closeButton.setOnClickListener(v -> {
-                    Uri contentUri = CONTENT_URI;
-                    String selection = "id=?";
-                    String[] selectionArgs = new String[]{String.valueOf(databaseId)};
-                    getContentResolver().delete(contentUri, selection, selectionArgs);
-                    popupWindow.dismiss();
-                    Toast.makeText(getBaseContext(), "Record Deleted", Toast.LENGTH_SHORT).show();
-                });
-
-                // Find the submit button inside the popup and set click listener
-                Button submitButton = popupView.findViewById(R.id.btnSubmit);
-                submitButton.setOnClickListener(v -> {
-                    Uri contentUri = CONTENT_URI;
-                    ContentValues values = new ContentValues();
-                    values.put("artist", popText1.getText().toString());
-                    values.put("name", popText2.getText().toString());
-                    String selection = "id=?";
-                    String[] selectionArgs = new String[]{String.valueOf(databaseId)};
-                    getContentResolver().update(contentUri, values, selection, selectionArgs);
-                    popupWindow.dismiss();
-                    Toast.makeText(getBaseContext(), "Record Updated", Toast.LENGTH_SHORT).show();
-                });
-
-                // close button to dismiss the popup window
-                ImageButton btnClose = popupView.findViewById(R.id.btnClose);
-                btnClose.setOnClickListener(v -> popupWindow.dismiss());
-            });
-
-            ArrayAdapter<String> arr = new ArrayAdapter<>(this,
-                    R.layout.support_simple_spinner_dropdown_item, albumRowsList);
-            listView.setAdapter(arr);
-        } else {
-            Toast.makeText(getBaseContext(), "No Records Found", Toast.LENGTH_LONG).show();
-            if (cursor != null) {
                 cursor.close();
+
+                listView.setOnItemClickListener((parent, view1, position, id) -> {
+                    // Get the album from our mapping
+                    Album album = positionToAlbumMap.get(position);
+                    if (album == null) {
+                        Toast.makeText(getBaseContext(), "Error: Could not find album", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    showEditPopup(view1, album);
+                });
+
+                ArrayAdapter<String> arr = new ArrayAdapter<>(this,
+                        R.layout.support_simple_spinner_dropdown_item, albumRowsList);
+                listView.setAdapter(arr);
+            } else {
+                Toast.makeText(getBaseContext(), "No Records Found", Toast.LENGTH_LONG).show();
+                if (cursor != null) {
+                    cursor.close();
+                }
             }
+        } catch (Exception e) {
+            Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void showEditPopup(View view, Album album) {
+        // inflate the layout of the popup window
+        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+        View popupView = inflater.inflate(R.layout.popup_window, null);
+
+        // create the popup window
+        int width = LinearLayout.LayoutParams.WRAP_CONTENT;
+        int height = LinearLayout.LayoutParams.WRAP_CONTENT;
+        boolean focusable = true;
+        final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
+
+        // show the popup window
+        popupWindow.showAtLocation(view, Gravity.CENTER, 0, 0);
+
+        EditText popText1 = popupView.findViewById(R.id.popName1);
+        popText1.setText(album.getArtist(), TextView.BufferType.EDITABLE);
+        EditText popText2 = popupView.findViewById(R.id.popName2);
+        popText2.setText(album.getName(), TextView.BufferType.EDITABLE);
+
+        // Delete button
+        Button deleteButton = popupView.findViewById(R.id.btnDelete);
+        deleteButton.setOnClickListener(v -> {
+            try {
+                Uri contentUri = CONTENT_URI;
+                String selection = "id=?";
+                String[] selectionArgs = new String[]{String.valueOf(album.getId())};
+                int deleted = getContentResolver().delete(contentUri, selection, selectionArgs);
+                
+                if (deleted > 0) {
+                    Toast.makeText(getBaseContext(), "Record Deleted", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getBaseContext(), "Failed to delete record", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            } finally {
+                popupWindow.dismiss();
+            }
+        });
+
+        // Submit button
+        Button submitButton = popupView.findViewById(R.id.btnSubmit);
+        submitButton.setOnClickListener(v -> {
+            try {
+                // Update album with new values
+                album.setArtist(popText1.getText().toString());
+                album.setName(popText2.getText().toString());
+
+                Uri contentUri = CONTENT_URI;
+                String selection = "id=?";
+                String[] selectionArgs = new String[]{String.valueOf(album.getId())};
+                int updated = getContentResolver().update(contentUri, album.toContentValues(), selection, selectionArgs);
+                
+                if (updated > 0) {
+                    Toast.makeText(getBaseContext(), "Record Updated", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getBaseContext(), "Failed to update record", Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            } finally {
+                popupWindow.dismiss();
+            }
+        });
+
+        // Close button
+        ImageButton btnClose = popupView.findViewById(R.id.btnClose);
+        btnClose.setOnClickListener(v -> popupWindow.dismiss());
     }
 }
