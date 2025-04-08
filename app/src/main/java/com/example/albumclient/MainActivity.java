@@ -1,220 +1,214 @@
 package com.example.albumclient;
 
-import androidx.appcompat.app.AppCompatActivity;
-
+import android.app.Dialog;
 import android.content.ContentValues;
 import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.Gravity;
-import android.view.LayoutInflater;
+import android.os.Looper;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageButton;
-import android.widget.LinearLayout;
-import android.widget.PopupWindow;
-import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.albumclient.model.Album;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-
-    private AlbumObserver albumObserver;
-    private static final Uri CONTENT_URI = Uri.parse("content://com.example.albummanager.provider/albums");
-    private ListView listView;
-    private Map<Integer, Album> positionToAlbumMap = new HashMap<>();
+    private TextInputEditText artistInput;
+    private TextInputEditText albumInput;
+    private RecyclerView albumList;
+    private AlbumAdapter adapter;
+    private List<Album> albums;
+    private ContentObserver contentObserver;
+    private boolean isSelfChange = false;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize ListView
-        listView = findViewById(R.id.list);
+        // Initialize views
+        artistInput = findViewById(R.id.textName1);
+        albumInput = findViewById(R.id.textName2);
+        albumList = findViewById(R.id.list);
+        FloatingActionButton fab = findViewById(R.id.fab);
 
-        // Register ContentObserver
-        albumObserver = new AlbumObserver(new Handler());
-        getContentResolver().registerContentObserver(CONTENT_URI, true, albumObserver);
-    }
+        // Setup RecyclerView
+        albums = new ArrayList<>();
+        adapter = new AlbumAdapter(albums, this::showEditPopup);
+        albumList.setLayoutManager(new LinearLayoutManager(this));
+        albumList.setAdapter(adapter);
 
-    // Define ContentObserver to listen for database changes
-    class AlbumObserver extends ContentObserver {
-        public AlbumObserver(Handler handler) {
-            super(handler);
-        }
+        // Setup FAB click listener
+        fab.setOnClickListener(v -> onClickAddDetails(null));
 
-        @Override
-        public void onChange(boolean selfChange) {
-            super.onChange(selfChange);
-            Toast.makeText(getBaseContext(), "Database Updated!", Toast.LENGTH_SHORT).show();
-            // Optionally refresh data
-            onClickShowDetails(null);
-        }
+        // Setup ContentObserver
+        contentObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange, Uri uri) {
+                if (!isSelfChange) {
+                    mainHandler.post(() -> {
+                        Toast.makeText(MainActivity.this, "Data changed in AlbumManager", Toast.LENGTH_SHORT).show();
+                        loadAlbums();
+                    });
+                }
+            }
+        };
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (albumObserver != null) {
-            getContentResolver().unregisterContentObserver(albumObserver);
-        }
+    protected void onResume() {
+        super.onResume();
+        // Register ContentObserver
+        getContentResolver().registerContentObserver(
+            Uri.parse("content://com.example.albummanager.provider/albums"),
+            true,
+            contentObserver
+        );
+        loadAlbums();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister ContentObserver
+        getContentResolver().unregisterContentObserver(contentObserver);
     }
 
     public void onClickAddDetails(View view) {
+        String artist = artistInput.getText().toString().trim();
+        String name = albumInput.getText().toString().trim();
+
+        if (artist.isEmpty() || name.isEmpty()) {
+            Toast.makeText(this, "Please enter both artist and album names", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        ContentValues values = new ContentValues();
+        values.put("artist", artist);
+        values.put("name", name);
+
         try {
-            // Get input values
-            String artist = ((EditText) findViewById(R.id.textName1)).getText().toString();
-            String name = ((EditText) findViewById(R.id.textName2)).getText().toString();
-
-            // Validate input
-            if (artist.isEmpty() || name.isEmpty()) {
-                Toast.makeText(getBaseContext(), "Please fill in all fields", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Create new album
-            Album newAlbum = new Album(artist, name);
-            
-            // Insert into database
-            Uri result = getContentResolver().insert(CONTENT_URI, newAlbum.toContentValues());
-            
-            if (result != null) {
-                Toast.makeText(getBaseContext(), "New Record Inserted", Toast.LENGTH_LONG).show();
-                // Clear input fields
-                ((EditText) findViewById(R.id.textName1)).setText("");
-                ((EditText) findViewById(R.id.textName2)).setText("");
-            } else {
-                Toast.makeText(getBaseContext(), "Failed to insert record", Toast.LENGTH_SHORT).show();
+            isSelfChange = true;
+            Uri uri = getContentResolver().insert(Uri.parse("content://com.example.albummanager.provider/albums"), values);
+            if (uri != null) {
+                Toast.makeText(this, R.string.album_added, Toast.LENGTH_SHORT).show();
+                artistInput.setText("");
+                albumInput.setText("");
+                loadAlbums();
             }
         } catch (Exception e) {
-            Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
+        } finally {
+            isSelfChange = false;
         }
     }
 
-    public void onClickShowDetails(View view) {
-        try {
-            // Query the database
-            Cursor cursor = getContentResolver().query(CONTENT_URI, null, null, null, null);
-
-            if (cursor != null && cursor.moveToFirst()) {
-                ArrayList<String> albumRowsList = new ArrayList<>();
-                positionToAlbumMap.clear(); // Clear the previous mapping
-                
-                int listPosition = 0;
-                while (!cursor.isAfterLast()) {
-                    // Create Album object from cursor
-                    Album album = Album.fromCursor(cursor);
-                    positionToAlbumMap.put(listPosition, album);
-                    
-                    // Add display string to list
-                    albumRowsList.add(album.getDisplayString());
-                    cursor.moveToNext();
-                    listPosition++;
-                }
-                cursor.close();
-
-                listView.setOnItemClickListener((parent, view1, position, id) -> {
-                    // Get the album from our mapping
-                    Album album = positionToAlbumMap.get(position);
-                    if (album == null) {
-                        Toast.makeText(getBaseContext(), "Error: Could not find album", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    showEditPopup(view1, album);
-                });
-
-                ArrayAdapter<String> arr = new ArrayAdapter<>(this,
-                        R.layout.support_simple_spinner_dropdown_item, albumRowsList);
-                listView.setAdapter(arr);
-            } else {
-                Toast.makeText(getBaseContext(), "No Records Found", Toast.LENGTH_LONG).show();
-                if (cursor != null) {
-                    cursor.close();
-                }
-            }
-        } catch (Exception e) {
-            Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void showEditPopup(View view, Album album) {
-        // inflate the layout of the popup window
-        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
-        View popupView = inflater.inflate(R.layout.popup_window, null);
-
-        // create the popup window
-        int width = LinearLayout.LayoutParams.WRAP_CONTENT;
-        int height = LinearLayout.LayoutParams.WRAP_CONTENT;
-        boolean focusable = true;
-        final PopupWindow popupWindow = new PopupWindow(popupView, width, height, focusable);
-
-        // show the popup window
-        popupWindow.showAtLocation(view, Gravity.CENTER, 0, 0);
-
-        EditText popText1 = popupView.findViewById(R.id.popName1);
-        popText1.setText(album.getArtist(), TextView.BufferType.EDITABLE);
-        EditText popText2 = popupView.findViewById(R.id.popName2);
-        popText2.setText(album.getName(), TextView.BufferType.EDITABLE);
-
-        // Delete button
-        Button deleteButton = popupView.findViewById(R.id.btnDelete);
-        deleteButton.setOnClickListener(v -> {
+    private void loadAlbums() {
+        mainHandler.post(() -> {
             try {
-                Uri contentUri = CONTENT_URI;
+                Cursor cursor = getContentResolver().query(
+                    Uri.parse("content://com.example.albummanager.provider/albums"),
+                    null, null, null, null);
+
+                if (cursor != null) {
+                    albums.clear();
+                    while (cursor.moveToNext()) {
+                        long id = cursor.getLong(cursor.getColumnIndex("id"));
+                        String artist = cursor.getString(cursor.getColumnIndex("artist"));
+                        String name = cursor.getString(cursor.getColumnIndex("name"));
+                        albums.add(new Album(id, artist, name));
+                    }
+                    cursor.close();
+                    adapter.notifyDataSetChanged();
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void showEditPopup(Album album) {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_edit_album, null);
+        TextInputEditText editArtist = dialogView.findViewById(R.id.editArtist);
+        TextInputEditText editAlbum = dialogView.findViewById(R.id.editAlbum);
+
+        editArtist.setText(album.getArtist());
+        editAlbum.setText(album.getName());
+
+        Dialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.edit_album)
+                .setView(dialogView)
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+
+        dialogView.findViewById(R.id.btnDelete).setOnClickListener(v -> {
+            try {
+                isSelfChange = true;
+                Uri contentUri = Uri.parse("content://com.example.albummanager.provider/albums");
                 String selection = "id=?";
                 String[] selectionArgs = new String[]{String.valueOf(album.getId())};
                 int deleted = getContentResolver().delete(contentUri, selection, selectionArgs);
                 
                 if (deleted > 0) {
-                    Toast.makeText(getBaseContext(), "Record Deleted", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.album_deleted, Toast.LENGTH_SHORT).show();
+                    loadAlbums();
                 } else {
-                    Toast.makeText(getBaseContext(), "Failed to delete record", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception e) {
-                Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
             } finally {
-                popupWindow.dismiss();
+                isSelfChange = false;
             }
+            dialog.dismiss();
         });
 
-        // Submit button
-        Button submitButton = popupView.findViewById(R.id.btnSubmit);
-        submitButton.setOnClickListener(v -> {
-            try {
-                // Update album with new values
-                album.setArtist(popText1.getText().toString());
-                album.setName(popText2.getText().toString());
+        dialogView.findViewById(R.id.btnSave).setOnClickListener(v -> {
+            String newArtist = editArtist.getText().toString().trim();
+            String newName = editAlbum.getText().toString().trim();
 
-                Uri contentUri = CONTENT_URI;
+            if (newArtist.isEmpty() || newName.isEmpty()) {
+                Toast.makeText(this, "Please enter both artist and album names", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            try {
+                isSelfChange = true;
+                ContentValues values = new ContentValues();
+                values.put("artist", newArtist);
+                values.put("name", newName);
+
+                Uri contentUri = Uri.parse("content://com.example.albummanager.provider/albums");
                 String selection = "id=?";
                 String[] selectionArgs = new String[]{String.valueOf(album.getId())};
-                int updated = getContentResolver().update(contentUri, album.toContentValues(), selection, selectionArgs);
+                int updated = getContentResolver().update(contentUri, values, selection, selectionArgs);
                 
                 if (updated > 0) {
-                    Toast.makeText(getBaseContext(), "Record Updated", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.album_updated, Toast.LENGTH_SHORT).show();
+                    loadAlbums();
                 } else {
-                    Toast.makeText(getBaseContext(), "Failed to update record", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
                 }
             } catch (Exception e) {
-                Toast.makeText(getBaseContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.error_occurred, Toast.LENGTH_SHORT).show();
             } finally {
-                popupWindow.dismiss();
+                isSelfChange = false;
             }
+            dialog.dismiss();
         });
 
-        // Close button
-        ImageButton btnClose = popupView.findViewById(R.id.btnClose);
-        btnClose.setOnClickListener(v -> popupWindow.dismiss());
+        dialog.show();
     }
 }
